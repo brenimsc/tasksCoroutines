@@ -18,7 +18,6 @@ class TaskAdapter : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>() {
 
 
     private var mList: List<TaskModel> = arrayListOf()
-    private lateinit var mListener: TaskListener
     private lateinit var callback : (task: TaskModel, onLongClick: Boolean) -> Unit
     private lateinit var callbackTaskComplete : (id: Int, complete: Boolean) -> Unit
 
@@ -46,9 +45,6 @@ class TaskAdapter : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>() {
         this.callbackTaskComplete = callbackTaskComplete
     }
 
-    fun attachListener(listener: TaskListener) {
-        mListener = listener
-    }
 
     fun updateList(list: List<TaskModel>) {
         mList = list

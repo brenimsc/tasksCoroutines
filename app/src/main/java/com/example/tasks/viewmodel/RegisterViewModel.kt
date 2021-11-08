@@ -4,11 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.tasks.service.model.HeaderModel
 import com.example.tasks.Validation
 import com.example.tasks.service.constants.TaskConstants
 import com.example.tasks.service.repository.PersonRepository
 import com.example.tasks.service.repository.local.SecurityPreferences
+import kotlinx.coroutines.launch
 
 class RegisterViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -19,15 +21,17 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     val create: LiveData<Validation> get() = _create
 
     fun create(name: String, email: String, password: String) {
-        personRepository.createLogin(name, email, password) { headerModel, error ->
-            when {
-                onSucess(headerModel) -> {
-                    saveInfoUser(headerModel)
-                    _create.value = Validation(true)
-                }
+        viewModelScope.launch {
+            personRepository.createLogin(name, email, password) { headerModel, error ->
+                when {
+                    onSucess(headerModel) -> {
+                        saveInfoUser(headerModel)
+                        _create.value = Validation(true)
+                    }
 
-                onFailure(error) -> {
-                    _create.value = Validation(false, error!!)
+                    onFailure(error) -> {
+                        _create.value = Validation(false, error!!)
+                    }
                 }
             }
         }

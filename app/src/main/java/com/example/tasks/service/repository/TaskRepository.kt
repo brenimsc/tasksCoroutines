@@ -4,7 +4,10 @@ import android.content.Context
 import android.util.Log
 import com.example.tasks.BaseRepository
 import com.example.tasks.R
+import com.example.tasks.extensions.processData
 import com.example.tasks.service.constants.TaskConstants
+import com.example.tasks.service.fingerprint.Fingerprint
+import com.example.tasks.service.model.HeaderModel
 import com.example.tasks.service.model.TaskModel
 import com.example.tasks.service.retrofit.api.RetrofitClient
 import com.example.tasks.service.retrofit.api.TaskService
@@ -12,194 +15,177 @@ import com.google.gson.Gson
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.lang.Exception
 
 class TaskRepository(val context: Context) : BaseRepository(context) {
 
     private val service = RetrofitClient.createService(TaskService::class.java)
 
-    private fun list(call: Call<List<TaskModel>>, callback: (list: List<TaskModel>?, error: String?) -> Unit) {
+    private suspend fun list(
+        responseInt: Int,
+        callback: (list: List<TaskModel>?, error: String?) -> Unit
+    ) {
 
         if (!isConnectionAvailable(context)) {
             callback(null, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        call.enqueue(object : Callback<List<TaskModel>>{
-            override fun onResponse(
-                call: Call<List<TaskModel>>,
-                response: Response<List<TaskModel>>
-            ) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(null, validation)
+        val response = when (responseInt) {
+            TaskConstants.FILTER.ALL -> service.all()
+            TaskConstants.FILTER.NEXT -> service.nextWeek()
+            else -> service.overdue()
+        }
+
+        try {
+            response.processData { sucess, error ->
+                if (sucess != null) {
+                    callback(sucess, null)
                 } else {
-                    response.body()?.let { callback(it, null) }
+                    callback(null, error)
                 }
             }
-
-            override fun onFailure(call: Call<List<TaskModel>>, t: Throwable) {
-                callback(null, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
+        } catch (e: Exception) {
+            callback(null, "Houve uma exceção!")
+            Log.e("BRENOL", "Excecao ${e.message}")
+        }
     }
 
-    fun all(callback: (list: List<TaskModel>?, error: String?) -> Unit) {
-        val call = service.all()
-        list(call, callback)
-    }
+    suspend fun all(callback: (list: List<TaskModel>?, error: String?) -> Unit) =
+        list(TaskConstants.FILTER.ALL, callback)
 
-    fun updateStatus(id: Int, complete: Boolean, callback: (succes: Boolean, error: String?) -> Unit) {
+    suspend fun nextWeek(callback: (list: List<TaskModel>?, error: String?) -> Unit) =
+        list(TaskConstants.FILTER.NEXT, callback)
+
+    suspend fun overdue(callback: (list: List<TaskModel>?, error: String?) -> Unit) =
+        list(TaskConstants.FILTER.EXPIRED, callback)
+
+    suspend fun updateStatus(
+        id: Int,
+        complete: Boolean,
+        callback: (succes: Boolean, error: String?) -> Unit
+    ) {
 
         if (!isConnectionAvailable(context)) {
             callback(false, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        val call = if (complete) {
-            service.complete(id)
+        if (complete) {
+            try {
+                val response = service.complete(id)
+                response.processData { sucess, error ->
+                    if (sucess != null) {
+                        callback(sucess, null)
+                    } else {
+                        callback(false, error)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("BRENOL", e.message.toString())
+            }
         } else {
-            service.undo(id)
+            try {
+                val response = service.undo(id)
+                response.processData { sucess, error ->
+                    if (sucess != null) {
+                        callback(sucess, null)
+                    } else {
+                        callback(false, error)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("BRENOL", e.message.toString())
+            }
         }
 
-        call.enqueue(object  : Callback<Boolean> {
 
-            override fun onResponse(call: Call<Boolean>, response: Response<Boolean>) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(false, validation)
-                } else {
-                    response.body()?.let { callback(it, null) }
-                }
-
-            }
-
-            override fun onFailure(call: Call<Boolean>, t: Throwable) {
-                callback(false, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
     }
 
-    fun nextWeek(callback: (list: List<TaskModel>?, error: String?) -> Unit) {
-        val call = service.nextWeek()
-        list(call, callback)
-    }
-
-    fun overdue(callback: (list: List<TaskModel>?, error: String?) -> Unit) {
-        val call = service.overdue()
-        list(call, callback)
-    }
-
-    fun create(task: TaskModel, callback: (sucess: Boolean, error: String?) -> Unit) {
+    suspend fun create(task: TaskModel, callback: (sucess: Boolean, error: String?) -> Unit) {
 
         if (!isConnectionAvailable(context)) {
             callback(false, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        val call: Call<Boolean> =
-            service.create(task.priorityId, task.description, task.data, task.complete)
-        call.enqueue(object  : Callback<Boolean> {
-
-            override fun onResponse(call: Call<Boolean>, response: Response<Boolean>) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(false, validation)
+        try {
+            val response =
+                service.create(task.priorityId, task.description, task.data, task.complete)
+            response.processData { sucess, error ->
+                if (sucess != null) {
+                    callback(sucess, null)
                 } else {
-                    response.body()?.let { callback(it, null) }
+                    callback(false, error)
                 }
-
             }
-
-            override fun onFailure(call: Call<Boolean>, t: Throwable) {
-                callback(false, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
+        } catch (e: Exception) {
+            Log.e("BRENOL", e.message.toString())
+        }
     }
 
-    fun load(taskId: Int, callback: (sucess: TaskModel?, error: String?) -> Unit) {
+    suspend fun load(taskId: Int, callback: (task: TaskModel?, error: String?) -> Unit) {
 
         if (!isConnectionAvailable(context)) {
             callback(null, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        val call: Call<TaskModel> =
-            service.load(taskId)
-        call.enqueue(object  : Callback<TaskModel> {
-
-            override fun onResponse(call: Call<TaskModel>, response: Response<TaskModel>) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(null, validation)
+        try {
+            val response = service.load(taskId)
+            response.processData { sucess, error ->
+                if (sucess != null) {
+                    callback(sucess, null)
                 } else {
-                    response.body()?.let { callback(it, null) }
+                    callback(null, error)
                 }
-
             }
-
-            override fun onFailure(call: Call<TaskModel>, t: Throwable) {
-                callback(null, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
+        } catch (e: Exception) {
+            Log.e("BRENOL", e.message.toString())
+        }
     }
 
-    fun update(task: TaskModel, callback: (sucess: Boolean, error: String?) -> Unit) {
+    suspend fun update(task: TaskModel, callback: (sucess: Boolean, error: String?) -> Unit) {
 
         if (!isConnectionAvailable(context)) {
             callback(false, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        val call: Call<Boolean> =
-            service.update(task.id, task.priorityId, task.description, task.data, task.complete)
-        call.enqueue(object  : Callback<Boolean> {
-
-            override fun onResponse(call: Call<Boolean>, response: Response<Boolean>) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(false, validation)
+        try {
+            val response =
+                service.update(task.id, task.priorityId, task.description, task.data, task.complete)
+            response.processData { sucess, error ->
+                if (sucess != null) {
+                    callback(sucess, null)
                 } else {
-                    response.body()?.let { callback(it, null) }
+                    callback(false, error)
                 }
-
             }
-
-            override fun onFailure(call: Call<Boolean>, t: Throwable) {
-                callback(false, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
+        } catch (e: Exception) {
+            Log.e("BRENOL", e.message.toString())
+        }
     }
 
-    fun delete(id: Int, callback: (sucess: Boolean, error: String?) -> Unit) {
+    suspend fun delete(id: Int, callback: (sucess: Boolean, error: String?) -> Unit) {
 
         if (!isConnectionAvailable(context)) {
             callback(false, context.getString(R.string.ERROR_INTERNET_CONNECTION))
             return
         }
 
-        val call: Call<Boolean> =
-            service.delete(id)
-        call.enqueue(object  : Callback<Boolean> {
-
-            override fun onResponse(call: Call<Boolean>, response: Response<Boolean>) {
-                if (response.code() != TaskConstants.HTTP.SUCCESS) {
-                    val validation = Gson().toJson(response.errorBody()!!.string(), String::class.java)
-                    callback(false, validation)
+        try {
+            val response = service.delete(id)
+            response.processData { sucess, error ->
+                if (sucess != null) {
+                    callback(sucess, null)
                 } else {
-                    response.body()?.let { callback(it, null) }
+                    callback(false, error)
                 }
-
             }
+        } catch (e: Exception) {
+            Log.e("BRENOL", e.message.toString())
+        }
 
-            override fun onFailure(call: Call<Boolean>, t: Throwable) {
-                callback(false, context.getString(R.string.ERROR_UNEXPECTED))
-            }
-
-        })
     }
 }

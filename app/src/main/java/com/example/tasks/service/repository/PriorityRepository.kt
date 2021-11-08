@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import com.example.tasks.BaseRepository
+import com.example.tasks.extensions.processData
 import com.example.tasks.service.constants.TaskConstants
 import com.example.tasks.service.model.PriorityModel
 import com.example.tasks.service.repository.local.TaskDatabase
@@ -20,28 +21,19 @@ class PriorityRepository(val context: Context) : BaseRepository(context) {
     private val service = RetrofitClient.createService(PriorityService::class.java)
     private val database = TaskDatabase.getDatabase(context).priorityDao()
 
-    fun all() {
+    suspend fun all() {
 
         if (!isConnectionAvailable(context)) {
-
             return
         }
-        val call: Call<List<PriorityModel>> = service.list()
-        call.enqueue(object : Callback<List<PriorityModel>>{
-            override fun onResponse(
-                call: Call<List<PriorityModel>>,
-                response: Response<List<PriorityModel>>
-            ) {
-                if (response.code() == TaskConstants.HTTP.SUCCESS) {
-                    database.clear()
-                    response.body()?.let { database.save(it) }
-                }
-            }
 
-            override fun onFailure(call: Call<List<PriorityModel>>, t: Throwable) {
+        val response = service.list()
+        response.processData { sucess, _ ->
+            if (sucess != null) {
+                database.clear()
+                response.body()?.let { database.save(it) }
             }
-
-        })
+        }
     }
 
     fun listPriority() = database.getPriority()

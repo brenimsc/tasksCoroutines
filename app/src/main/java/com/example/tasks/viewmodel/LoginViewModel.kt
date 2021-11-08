@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.tasks.service.model.HeaderModel
 import com.example.tasks.Validation
 import com.example.tasks.service.constants.TaskConstants
@@ -12,6 +13,7 @@ import com.example.tasks.service.repository.PersonRepository
 import com.example.tasks.service.repository.PriorityRepository
 import com.example.tasks.service.repository.local.SecurityPreferences
 import com.example.tasks.service.retrofit.api.RetrofitClient
+import kotlinx.coroutines.launch
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -30,18 +32,19 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun doLogin(email: String, password: String) {
-        personRepository.login(email, password) { headerModel, error ->
-            when {
-                onSucess(headerModel) -> {
-                    saveInfoUser(headerModel)
-                    headerModel?.let { RetrofitClient.addHeader(it.token, headerModel.personKey) }
-                    _login.value = Validation(true)
-                }
-                onFailure(error) -> {
-                    _login.value = Validation(false, error!!)
+        viewModelScope.launch {
+            personRepository.login(email, password) { headerModel, error ->
+                when {
+                    onSucess(headerModel) -> {
+                        saveInfoUser(headerModel)
+                        headerModel?.let { RetrofitClient.addHeader(it.token, headerModel.personKey) }
+                        _login.value = Validation(true)
+                    }
+                    onFailure(error) -> {
+                        _login.value = Validation(false, error!!)
+                    }
                 }
             }
-
         }
     }
 
@@ -72,7 +75,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         val logged = (token.isNotEmpty() && person.isNotEmpty())
 
         if (!logged) {
-            priorityRepository.all()
+            viewModelScope.launch {
+                priorityRepository.all()
+            }
         }
 
         if (Fingerprint.isAuthenticationAvaliable(getApplication())) {

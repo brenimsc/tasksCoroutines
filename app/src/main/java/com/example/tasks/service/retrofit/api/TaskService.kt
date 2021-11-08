@@ -2,53 +2,54 @@ package com.example.tasks.service.retrofit.api
 
 import com.example.tasks.service.model.TaskModel
 import retrofit2.Call
+import retrofit2.Response
 import retrofit2.http.*
 
 interface TaskService {
 
     @GET("Task")
-    fun all() : Call<List<TaskModel>>
+    suspend fun all() : retrofit2.Response<List<TaskModel>>
 
     @GET("Task/Next7Days")
-    fun nextWeek() : Call<List<TaskModel>>
+    suspend fun nextWeek() : Response<List<TaskModel>>
 
     @GET("Task/Overdue")
-    fun overdue() : Call<List<TaskModel>>
+    suspend fun overdue() : Response<List<TaskModel>>
 
     @GET("Task/{id}") //encoded caso tenha espaco ele é encapsulado para que api n quebre
-    fun load(@Path(value = "id", encoded = true) id: Int) : Call<TaskModel>
+    suspend fun load(@Path(value = "id", encoded = true) id: Int) : Response<TaskModel>
 
     @POST("Task")
     @FormUrlEncoded
-    fun create(
+    suspend fun create(
         @Field("PriorityId") priorityId: Int,
         @Field("Description") description: String,
         @Field("DueDate") dueDate: String,
         @Field("Complete") complete : Boolean
-    ) : Call<Boolean>
+    ) : Response<Boolean>
 
     //@PUT("Task")
     @HTTP(method = "PUT", path = "Task", hasBody = true) //Como precisamos passar valores tem que ser assim , se n poderia ser o outro PUT e ser passado no Body
     @FormUrlEncoded
-    fun update(
+    suspend fun update(
         @Field("Id") id: Int,
         @Field("PriorityId") priorityId: Int,
         @Field("Description") description: String,
         @Field("DueDate") dueDate: String,
         @Field("Complete") complete : Boolean
-    ) : Call<Boolean>
+    ) : Response<Boolean>
 
     @HTTP(method = "PUT", path = "Task/Complete", hasBody = true)
     @FormUrlEncoded
-    fun complete(@Field("Id") id: Int) : Call<Boolean>
+    suspend fun complete(@Field("Id") id: Int) : Response<Boolean>
 
     @HTTP(method = "PUT", path = "Task/Undo", hasBody = true)
     @FormUrlEncoded
-    fun undo(@Field("Id") id: Int) : Call<Boolean>
+    suspend fun undo(@Field("Id") id: Int) : Response<Boolean>
 
     @HTTP(method = "DELETE", path = "Task", hasBody = true)
     @FormUrlEncoded
-    fun delete(@Field("Id") id: Int) : Call<Boolean>
+    suspend fun delete(@Field("Id") id: Int) : Response<Boolean>
 
 
 }
